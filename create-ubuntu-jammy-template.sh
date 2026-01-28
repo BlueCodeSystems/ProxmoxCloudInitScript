@@ -100,7 +100,8 @@ if qm status "$virtualMachineId" >/dev/null 2>&1; then
 fi
 
 # Keep the image cloud-init ready (like AWS); do not set a root password.
-virt-customize -a "$img_path" --install qemu-guest-agent
+# Bake in package updates so clones start fully patched.
+virt-customize -a "$img_path" --update --install qemu-guest-agent
 
 mkdir -p "$snippetDir"
 cloudInitPath="$snippetDir/${templateName}-user-data.yaml"
