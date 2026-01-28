@@ -3,7 +3,7 @@ set -euo pipefail
 
 imageURL="https://cloud-images.ubuntu.com/noble/20260108/noble-server-cloudimg-amd64.img"
 imageName="noble-server-cloudimg-amd64.img"
-volumeName="local-lvm"
+volumeName="local-zfs"
 virtualMachineId="9000"
 templateName="noble-tpl"
 tmp_cores="2"
