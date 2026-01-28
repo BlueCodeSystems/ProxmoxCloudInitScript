@@ -10,6 +10,7 @@ virtualMachineId=""
 templateName="noble-tpl"
 tmp_cores="2"
 tmp_memory="2048"
+defaultDiskSize="10G"
 cpuTypeRequired="host"
 bridgeName="vmbr0"
 snippetStorage="local"
@@ -154,6 +155,7 @@ qm create "$virtualMachineId" \
 
 qm importdisk "$virtualMachineId" "$img_path" "$volumeName"
 qm set "$virtualMachineId" --scsihw virtio-scsi-pci --scsi0 "$volumeName:vm-$virtualMachineId-disk-0"
+qm resize "$virtualMachineId" scsi0 "$defaultDiskSize"
 qm set "$virtualMachineId" --boot c --bootdisk scsi0
 qm set "$virtualMachineId" --ide2 "$volumeName:cloudinit"
 qm set "$virtualMachineId" --cicustom "user=${snippetStorage}:snippets/$(basename "$cloudInitPath")"
