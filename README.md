@@ -24,6 +24,8 @@ https://forum.proxmox.com/ < Proxmox Community Forum.
 
 * Give the script execute permissions ``` chmod +x create-ubuntu-jammy-template.sh ```
 
+* Set the Tailscale auth key at runtime (recommended) via ``` TAILSCALE_AUTH_KEY=tskey-... ./create-ubuntu-jammy-template.sh ```, or enter it when prompted.
+
 * Finally run the script ``` ./create-ubuntu-jammy-template.sh ```
 
 ### A copy of the script being run on my pve host is located at the bottom of this page for information. ###

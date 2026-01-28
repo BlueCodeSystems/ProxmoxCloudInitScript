@@ -16,7 +16,7 @@ cloudInitUser="ubuntu"
 sshPublicKeyPath=""
 breakGlassKeyPath=""
 includeBreakGlassKey="false"
-tailscaleAuthKey="REDACTED"
+tailscaleAuthKey="${TAILSCALE_AUTH_KEY:-}"
 rotateTailscaleKey="true"
 
 require_cmd() {
@@ -73,6 +73,11 @@ virt-customize -a "$img_path" --install qemu-guest-agent
 mkdir -p "$snippetDir"
 cloudInitPath="$snippetDir/${templateName}-user-data.yaml"
 runcmd_lines=""
+
+if [[ "$rotateTailscaleKey" == "true" && -z "$tailscaleAuthKey" && -t 0 ]]; then
+  read -r -s -p "Enter Tailscale auth key (leave blank to skip): " tailscaleAuthKey
+  echo
+fi
 
 if [[ "$rotateTailscaleKey" == "true" && -n "$tailscaleAuthKey" ]]; then
   runcmd_lines+=$'\n  - curl -fsSL https://tailscale.com/install.sh | sh'
