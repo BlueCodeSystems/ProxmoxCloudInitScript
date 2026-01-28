@@ -59,8 +59,14 @@ workdir="$(mktemp -d)"
 cleanup() { rm -rf "$workdir"; }
 trap cleanup EXIT
 
-img_path="$workdir/$imageName"
-wget -O "$img_path" "$imageURL"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+image_dir="$script_dir"
+img_path="$image_dir/$imageName"
+if [[ -f "$img_path" ]]; then
+  echo "Using cached image: $img_path"
+else
+  wget -O "$img_path" "$imageURL"
+fi
 
 if qm status "$virtualMachineId" >/dev/null 2>&1; then
   qm stop "$virtualMachineId" >/dev/null 2>&1 || true
