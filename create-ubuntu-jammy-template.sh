@@ -4,7 +4,9 @@ set -euo pipefail
 imageURL="https://cloud-images.ubuntu.com/noble/20260108/noble-server-cloudimg-amd64.img"
 imageName="noble-server-cloudimg-amd64.img"
 volumeName="local-zfs"
-virtualMachineId="9000"
+vmIdMin="9000"
+vmIdMax="9500"
+virtualMachineId=""
 templateName="noble-tpl"
 tmp_cores="2"
 tmp_memory="2048"
@@ -25,6 +27,29 @@ require_cmd() {
 
 require_cmd qm
 require_cmd virt-customize
+
+random_vm_id() {
+  local min="$1"
+  local max="$2"
+  local attempts=100
+  local id
+  if (( min > max )); then
+    echo "vmIdMin must be <= vmIdMax." >&2
+    exit 1
+  fi
+  for ((i=0; i<attempts; i++)); do
+    id=$(( RANDOM % (max - min + 1) + min ))
+    if ! qm status "$id" >/dev/null 2>&1; then
+      echo "$id"
+      return 0
+    fi
+  done
+  echo "Failed to find a free VM ID in range ${min}-${max}." >&2
+  exit 1
+}
+
+virtualMachineId="$(random_vm_id "$vmIdMin" "$vmIdMax")"
+echo "Selected VM ID: $virtualMachineId"
 
 sshPublicKey=""
 if [[ -n "$sshPublicKeyPath" ]]; then
@@ -87,7 +112,7 @@ fi
 
 if [[ "$rotateTailscaleKey" == "true" && -n "$tailscaleAuthKey" ]]; then
   runcmd_lines+=$'\n  - curl -fsSL https://tailscale.com/install.sh | sh'
-  runcmd_lines+=$'\n  - tailscale up --ssh --auth-key='"$tailscaleAuthKey"
+  runcmd_lines+=$'\n  - tailscale up --ssh --auth-key='"$tailscaleAuthKey"' --hostname="$(hostname)"'
 fi
 
 ssh_keys_block=""
