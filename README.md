@@ -39,7 +39,7 @@ imageName="noble-server-cloudimg-amd64.img"
 volumeName="local-zfs"
 vmIdMin="9000"
 vmIdMax="9500"
-templateName="noble-tpl"
+templateName="ubuntu-24.04-noble-server-20260108-tpl"
 tmp_cores="2"
 tmp_memory="2048"
 defaultDiskSize="10G"
@@ -58,7 +58,7 @@ cloudInitUser="ubuntu"
 
 * ``` vmIdMin="9000" ``` and ``` vmIdMax="9500" ``` define the random VM ID range. The script picks a free ID in this range.
 
-* ``` templateName="noble-tpl" ``` This variable is used to set the name of the template as it appears in the datacentre > pve > list in the column on the left side of the proxmox web ui as you can see in the image above.
+* ``` templateName="ubuntu-24.04-noble-server-20260108-tpl" ``` This variable is used to set the name of the template as it appears in the datacentre > pve > list in the column on the left side of the proxmox web ui as you can see in the image above.
 
 * ``` tmp_cores="2" ``` Use of this variable configures the number of cpu cores you wish to add to your vm template.
 
@@ -73,7 +73,7 @@ cloudInitUser="ubuntu"
 * The cpu type is set to host as this allows passthrough of cpu properties eg AES-NI MMX etc if you wish to change please modify the variable ``` cpuTypeRequired="host" ```
   Examples include ```cpuTypeRequired="kvm64" ``` ``` cpuTypeRequired="qemu64" ``` etc.
 
-* Once this script finishes - on the left column in Proxmox you will see your template (e.g. noble-tpl) - right click and select clone.  
+* Once this script finishes - on the left column in Proxmox you will see your template (e.g. ubuntu-24.04-noble-server-20260108-tpl) - right click and select clone.  
 
 * On the popup box that appears - select mode = full clone, give the vm a name and select where you want to store the new vm you are creating - see image below:
 
