@@ -106,7 +106,17 @@ fi
 
 # Keep the image cloud-init ready (like AWS); do not set a root password.
 # Bake in package updates so clones start fully patched.
-virt-customize -a "$img_path" --update --install qemu-guest-agent
+# Install essential packages for a golden image.
+virt-customize -a "$img_path" \
+  --update \
+  --install qemu-guest-agent \
+  --install docker.io,docker-compose,containerd \
+  --install curl,wget,git,vim,htop,tmux,jq,unzip \
+  --install fail2ban,ufw \
+  --install ca-certificates,gnupg,lsb-release \
+  --run-command 'systemctl enable docker' \
+  --run-command 'systemctl enable fail2ban' \
+  --run-command 'systemctl enable qemu-guest-agent'
 
 mkdir -p "$snippetDir"
 cloudInitPath="$snippetDir/${templateName}-user-data.yaml"
@@ -165,7 +175,7 @@ bootcmd:
 SNIPPET
 }
 
-if [[ "\$phase" == "pre-start" ]] || [[ "\$phase" == "post-clone" ]]; then
+if [[ "\$phase" == "pre-start" ]]; then
   write_snippet
 
   snippet_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$snippet_file")"
@@ -187,6 +197,30 @@ if [[ "\$phase" == "pre-start" ]] || [[ "\$phase" == "post-clone" ]]; then
     # Force regenerate cloud-init
     qm cloudinit update "\$vmid" 2>/dev/null || true
   fi
+
+elif [[ "\$phase" == "post-clone" ]]; then
+  write_snippet
+
+  snippet_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$snippet_file")"
+  conf="/etc/pve/qemu-server/\${vmid}.conf"
+
+  if [[ -f "\$conf" ]]; then
+    # Update cicustom to point to per-VM snippet
+    current_line="\$(grep -E '^cicustom:' "\$conf" || true)"
+    if [[ -z "\$current_line" ]]; then
+      echo "cicustom: user=\$snippet_ref" >>"\$conf"
+    else
+      if echo "\$current_line" | grep -q "user="; then
+        sed -i "s|user=[^,]*|user=\$snippet_ref|" "\$conf"
+      else
+        sed -i "s|^cicustom:|cicustom: user=\$snippet_ref,|" "\$conf"
+      fi
+    fi
+    qm cloudinit update "\$vmid" 2>/dev/null || true
+  fi
+
+  # Auto-start the VM after clone
+  qm start "\$vmid" &
 
 elif [[ "\$phase" == "post-start" ]]; then
   # Set hostname directly via guest agent after VM boots
@@ -240,7 +274,7 @@ cat >"$cloudInitPath" <<EOF
 preserve_hostname: false
 users:
   - name: $cloudInitUser
-    groups: sudo
+    groups: sudo,docker
     shell: /bin/bash
     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
     lock_passwd: true
@@ -248,7 +282,7 @@ $ssh_keys_block
 $hostname_block
 disable_root: true
 ssh_pwauth: false
-package_update: true
+package_update: false
 package_upgrade: false
 runcmd:
 $runcmd_lines
