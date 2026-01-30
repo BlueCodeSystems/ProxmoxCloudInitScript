@@ -112,7 +112,7 @@ runcmd_lines=""
 
 if [[ "$enableDynamicHostname" == "true" ]]; then
   hookscriptPath="$snippetDir/$hookscriptName"
-  cat >"$hookscriptPath" <<'EOF'
+  cat >"$hookscriptPath" <<EOF
 #!/bin/bash
 set -euo pipefail
 
