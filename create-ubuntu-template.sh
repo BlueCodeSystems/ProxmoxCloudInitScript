@@ -182,20 +182,27 @@ if [[ "\$phase" == "pre-start" ]]; then
   conf="/etc/pve/qemu-server/\${vmid}.conf"
 
   if [[ -f "\$conf" ]]; then
-    # Update cicustom to point to per-VM snippet
+    # Only update cicustom if not already pointing to correct snippet
     current_line="\$(grep -E '^cicustom:' "\$conf" || true)"
+    needs_update="false"
+
     if [[ -z "\$current_line" ]]; then
       echo "cicustom: user=\$snippet_ref" >>"\$conf"
-    else
+      needs_update="true"
+    elif ! echo "\$current_line" | grep -q "ci-hostname-\${vmid}.yaml"; then
       # Replace user= value, preserve other keys
       if echo "\$current_line" | grep -q "user="; then
         sed -i "s|user=[^,]*|user=\$snippet_ref|" "\$conf"
       else
         sed -i "s|^cicustom:|cicustom: user=\$snippet_ref,|" "\$conf"
       fi
+      needs_update="true"
     fi
-    # Force regenerate cloud-init
-    qm cloudinit update "\$vmid" 2>/dev/null || true
+
+    # Only regenerate cloud-init if we made changes
+    if [[ "\$needs_update" == "true" ]]; then
+      qm cloudinit update "\$vmid" 2>/dev/null || true
+    fi
   fi
 
 elif [[ "\$phase" == "post-clone" ]]; then
