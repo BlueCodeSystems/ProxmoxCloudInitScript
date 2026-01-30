@@ -110,10 +110,11 @@ mkdir -p "$snippetDir"
 cloudInitPath="$snippetDir/${templateName}-user-data.yaml"
 runcmd_lines=""
 
-if [[ "$enableDynamicHostname" == "true" ]]; then
-  hookscriptPath="$snippetDir/$hookscriptName"
-  cat >"$hookscriptPath" <<EOF
+  if [[ "$enableDynamicHostname" == "true" ]]; then
+    hookscriptPath="$snippetDir/$hookscriptName"
+    cat >"$hookscriptPath" <<EOF
 #!/bin/bash
+set +u
 set -eo pipefail
 
 vmid="\$1"
