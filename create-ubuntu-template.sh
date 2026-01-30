@@ -119,10 +119,10 @@ set -eo pipefail
 vmid="\$1"
 phase="\$2"
 
-SNIPPET_STORAGE="\${SNIPPET_STORAGE:-$snippetStorage}"
-SNIPPET_DIR="\${SNIPPET_DIR:-$snippetDir}"
-BASE_USER_SNIPPET="\${BASE_USER_SNIPPET:-$(basename "$cloudInitPath")}"
-BASE_USER_PATH="\${BASE_USER_PATH:-$snippetDir/$(basename "$cloudInitPath")}"
+SNIPPET_STORAGE="$snippetStorage"
+SNIPPET_DIR="$snippetDir"
+BASE_USER_SNIPPET="$(basename "$cloudInitPath")"
+BASE_USER_PATH="$snippetDir/$(basename "$cloudInitPath")"
 
 raw_name="\$(qm config "\$vmid" | awk -F': ' '/^name:/{print \$2}')"
 if [[ -z "\$raw_name" ]]; then
