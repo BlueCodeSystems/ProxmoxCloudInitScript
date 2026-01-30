@@ -16,6 +16,9 @@ bridgeName="vmbr0"
 snippetStorage="local"
 snippetDir="/var/lib/vz/snippets"
 cloudInitUser="ubuntu"
+cloudInitHostname=""
+enableDynamicHostname="true"
+hookscriptName="cloudinit-hostname-hook.sh"
 sshPublicKeyPath=""
 breakGlassKeyPath=""
 includeBreakGlassKey="false"
@@ -107,6 +110,73 @@ mkdir -p "$snippetDir"
 cloudInitPath="$snippetDir/${templateName}-user-data.yaml"
 runcmd_lines=""
 
+if [[ "$enableDynamicHostname" == "true" ]]; then
+  hookscriptPath="$snippetDir/$hookscriptName"
+  cat >"$hookscriptPath" <<EOF
+#!/bin/bash
+set -euo pipefail
+
+vmid="\$1"
+phase="\$2"
+
+if [[ "\$phase" != "pre-start" ]]; then
+  exit 0
+fi
+
+SNIPPET_STORAGE="$snippetStorage"
+SNIPPET_DIR="$snippetDir"
+BASE_USER_SNIPPET="$(basename "$cloudInitPath")"
+
+raw_name="\$(qm config "\$vmid" | awk -F': ' '/^name:/{print \$2}')"
+if [[ -z "\$raw_name" ]]; then
+  exit 0
+fi
+
+sanitize_hostname() {
+  local name="\$1"
+  name="\$(echo "\$name" | tr '[:upper:]' '[:lower:]')"
+  name="\$(echo "\$name" | sed 's/[^a-z0-9-]/-/g; s/--*/-/g; s/^-//; s/-\$//')"
+  if (( \${#name} > 63 )); then
+    name="\${name:0:63}"
+    name="\$(echo "\$name" | sed 's/-\$//')"
+  fi
+  echo "\$name"
+}
+
+hostname="\$(sanitize_hostname "\$raw_name")"
+if [[ -z "\$hostname" ]]; then
+  exit 0
+fi
+
+snippet_file="\$SNIPPET_DIR/ci-hostname-\$vmid.yaml"
+cat >"\$snippet_file" <<SNIPPET
+#cloud-config
+preserve_hostname: false
+hostname: \$hostname
+manage_etc_hosts: true
+SNIPPET
+
+snippet_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$snippet_file")"
+existing_cicustom="\$(qm config "\$vmid" | awk -F': ' '/^cicustom:/{print \$2}')"
+
+if [[ -z "\$existing_cicustom" ]]; then
+  qm set "\$vmid" --cicustom "user=\$snippet_ref"
+  exit 0
+fi
+
+if echo "\$existing_cicustom" | grep -qE '(^|,)user='; then
+  current_user="\$(echo "\$existing_cicustom" | sed -n 's/.*user=\\([^,]*\\).*/\\1/p')"
+  if [[ "\$current_user" == *"\$BASE_USER_SNIPPET" ]]; then
+    updated="\$(echo "\$existing_cicustom" | sed "s|user=[^,]*|user=\$snippet_ref|")"
+    qm set "\$vmid" --cicustom "\$updated"
+  fi
+else
+  qm set "\$vmid" --cicustom "\$existing_cicustom,user=\$snippet_ref"
+fi
+EOF
+  chmod 0755 "$hookscriptPath"
+fi
+
 if [[ "$rotateTailscaleKey" == "true" && -z "$tailscaleAuthKey" && -t 0 ]]; then
   read -r -s -p "Enter Tailscale auth key (leave blank to skip): " tailscaleAuthKey
   echo
@@ -128,8 +198,15 @@ if [[ -n "$sshPublicKey" || -n "$breakGlassKey" ]]; then
   fi
 fi
 
+hostname_block=""
+if [[ -n "$cloudInitHostname" ]]; then
+  hostname_block+=$'\nhostname: '"$cloudInitHostname"
+  hostname_block+=$'\nmanage_etc_hosts: true'
+fi
+
 cat >"$cloudInitPath" <<EOF
 #cloud-config
+preserve_hostname: false
 users:
   - name: $cloudInitUser
     groups: sudo
@@ -137,6 +214,7 @@ users:
     sudo: ["ALL=(ALL) NOPASSWD:ALL"]
     lock_passwd: true
 $ssh_keys_block
+$hostname_block
 disable_root: true
 ssh_pwauth: false
 package_update: true
@@ -162,4 +240,7 @@ qm set "$virtualMachineId" --ide2 "$volumeName:cloudinit"
 qm set "$virtualMachineId" --cicustom "user=${snippetStorage}:snippets/$(basename "$cloudInitPath")"
 qm set "$virtualMachineId" --serial0 socket --vga serial0
 qm set "$virtualMachineId" --ipconfig0 ip=dhcp
+if [[ "$enableDynamicHostname" == "true" ]]; then
+  qm set "$virtualMachineId" --hookscript "${snippetStorage}:snippets/$hookscriptName"
+fi
 qm template "$virtualMachineId"

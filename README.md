@@ -22,11 +22,11 @@ https://forum.proxmox.com/ < Proxmox Community Forum.
 
 * The script installs libguestfs-tools and uses ``` virt-customize ``` to bake package updates into the image.
 
-* Give the script execute permissions ``` chmod +x create-ubuntu-jammy-template.sh ```
+* Give the script execute permissions ``` chmod +x create-ubuntu-template.sh ```
 
-* Set the Tailscale auth key at runtime (recommended) via ``` TAILSCALE_AUTH_KEY=tskey-... ./create-ubuntu-jammy-template.sh ```, or enter it when prompted. The key is not stored in the repo.
+* Set the Tailscale auth key at runtime (recommended) via ``` TAILSCALE_AUTH_KEY=tskey-... ./create-ubuntu-template.sh ```, or enter it when prompted. The key is not stored in the repo.
 
-* Finally run the script ``` ./create-ubuntu-jammy-template.sh ```
+* Finally run the script ``` ./create-ubuntu-template.sh ```
 
 ### A copy of the script being run on my pve host is located at the bottom of this page for information. ###
 
@@ -46,6 +46,9 @@ defaultDiskSize="10G"
 cpuTypeRequired="host"
 snippetStorage="local"
 cloudInitUser="ubuntu"
+cloudInitHostname=""
+enableDynamicHostname="true"
+hookscriptName="cloudinit-hostname-hook.sh"
 ```
 
 * The variable ```imageURL``` is the url from which to download the cloud init image from Ubuntu. Should you wish to change to a different image please visit https://cloud-images.ubuntu.com/ Then download the .img suitable for your proxmox host/cpu needs.
@@ -73,6 +76,12 @@ cloudInitUser="ubuntu"
 * The cpu type is set to host as this allows passthrough of cpu properties eg AES-NI MMX etc if you wish to change please modify the variable ``` cpuTypeRequired="host" ```
   Examples include ```cpuTypeRequired="kvm64" ``` ``` cpuTypeRequired="qemu64" ``` etc.
 
+* ``` cloudInitHostname="" ``` optionally sets the guest hostname in the cloud-init user-data. If left blank, cloud-init will only use the Proxmox Cloud-Init “Hostname” field (not the VM name) when that field is set.
+
+* ``` enableDynamicHostname="true" ``` installs a Proxmox hookscript that runs on VM pre-start to set the cloud-init hostname based on the VM name. This makes the guest hostname match the Proxmox VM name on first boot.
+
+* ``` hookscriptName="cloudinit-hostname-hook.sh" ``` is the filename for the hookscript stored in your snippets directory.
+
 * Once this script finishes - on the left column in Proxmox you will see your template (e.g. ubuntu-24.04-noble-server-20260108-tpl) - right click and select clone.  
 
 * On the popup box that appears - select mode = full clone, give the vm a name and select where you want to store the new vm you are creating - see image below:
@@ -89,7 +98,7 @@ cloudInitUser="ubuntu"
 ### Script output after running on my personal Proxmox VE host ###
 
 ```
-root@pve:~# ./create-ubuntu-jammy-template.sh
+root@pve:~# ./create-ubuntu-template.sh
 Hit:1 http://security.debian.org bullseye-security InRelease
 Hit:2 http://ftp.uk.debian.org/debian bullseye InRelease
 Hit:3 http://download.proxmox.com/debian/pve bullseye InRelease
