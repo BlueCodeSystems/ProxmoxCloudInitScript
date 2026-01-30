@@ -208,6 +208,9 @@ else
   fi
   sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
 fi
+
+# Force Proxmox to regenerate cloud-init data with updated cicustom
+qm cloudinit update "\$vmid" 2>/dev/null || true
 EOF
   chmod 0755 "$hookscriptPath"
 fi
