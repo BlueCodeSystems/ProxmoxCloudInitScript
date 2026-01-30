@@ -112,17 +112,17 @@ runcmd_lines=""
 
   if [[ "$enableDynamicHostname" == "true" ]]; then
     hookscriptPath="$snippetDir/$hookscriptName"
-  cat >"$hookscriptPath" <<EOF
+    cat >"$hookscriptPath" <<EOF
 #!/bin/bash
-set -eo pipefail
+set -e
 
 vmid="\$1"
 phase="\$2"
 
-SNIPPET_STORAGE="\${SNIPPET_STORAGE:-$snippetStorage}"
-SNIPPET_DIR="\${SNIPPET_DIR:-$snippetDir}"
-BASE_USER_SNIPPET="\${BASE_USER_SNIPPET:-$(basename "$cloudInitPath")}"
-BASE_USER_PATH="\${BASE_USER_PATH:-$snippetDir/$(basename "$cloudInitPath")}"
+SNIPPET_STORAGE="local"
+SNIPPET_DIR="/var/lib/vz/snippets"
+BASE_USER_SNIPPET="$(basename "$cloudInitPath")"
+BASE_USER_PATH="\$SNIPPET_DIR/\$BASE_USER_SNIPPET"
 
 raw_name="\$(qm config "\$vmid" | awk -F': ' '/^name:/{print \$2}')"
 if [[ -z "\$raw_name" ]]; then
@@ -252,6 +252,6 @@ qm set "$virtualMachineId" --cicustom "user=${snippetStorage}:snippets/$(basenam
 qm set "$virtualMachineId" --serial0 socket --vga serial0
 qm set "$virtualMachineId" --ipconfig0 ip=dhcp
 if [[ "$enableDynamicHostname" == "true" ]]; then
-  qm set "$virtualMachineId" --hookscript "${snippetStorage}:snippets/$hookscriptName"
-fi
+      qm set "$virtualMachineId" --hookscript "local:snippets/$hookscriptName"
+    fi
 qm template "$virtualMachineId"
