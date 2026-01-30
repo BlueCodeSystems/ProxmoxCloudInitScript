@@ -155,9 +155,13 @@ fi
 write_snippet() {
   cat "\$BASE_USER_PATH" >"\$snippet_file"
   cat >>"\$snippet_file" <<SNIPPET
+
 preserve_hostname: false
 hostname: \$hostname
 manage_etc_hosts: true
+bootcmd:
+  - hostnamectl set-hostname \$hostname
+  - sed -i "s/127.0.1.1.*/127.0.1.1 \$hostname/" /etc/hosts || true
 SNIPPET
 }
 
@@ -177,45 +181,32 @@ if [[ ! -f "\$conf" ]]; then
 fi
 
 current_line="\$(grep -E '^cicustom:' "\$conf" || true)"
-current_user="\$(echo "\$current_line" | sed -n 's/.*user=\\([^,]*\\).*/\\1/p')"
 
-needs_update="false"
+# Always update cicustom to point to the per-VM hostname snippet.
+# Preserve other cicustom keys (meta=, vendor=, network=) if present.
 if [[ -z "\$current_line" ]]; then
-  needs_update="true"
-elif [[ -n "\$current_user" && "\$current_user" == *"\$BASE_USER_SNIPPET" ]]; then
-  needs_update="true"
-fi
-
-if [[ "\$needs_update" == "true" ]]; then
-  if [[ -z "\$current_line" ]]; then
-    echo "cicustom: user=\$snippet_ref" >>"\$conf"
+  echo "cicustom: user=\$snippet_ref" >>"\$conf"
+else
+  line_body="\${current_line#cicustom: }"
+  IFS=',' read -r -a parts <<< "\$line_body"
+  kept=""
+  for part in "\${parts[@]}"; do
+    part="\$(echo "\$part" | sed 's/^ *//; s/ *\$//')"
+    if [[ -z "\$part" || "\$part" == user=* ]]; then
+      continue
+    fi
+    if [[ -z "\$kept" ]]; then
+      kept="\$part"
+    else
+      kept="\$kept,\$part"
+    fi
+  done
+  if [[ -n "\$kept" ]]; then
+    updated_line="cicustom: user=\$snippet_ref,\$kept"
   else
-    # Rebuild cicustom with a single user= entry and preserve other keys.
-    line_body="\${current_line#cicustom: }"
-    IFS=',' read -r -a parts <<< "\$line_body"
-    kept=""
-    for part in "\${parts[@]}"; do
-      part="\$(echo "\$part" | sed 's/^ *//; s/ *\$//')"
-      if [[ -z "\$part" || "\$part" == user=* ]]; then
-        continue
-      fi
-      if [[ -z "\$kept" ]]; then
-        kept="\$part"
-      else
-        kept="\$kept,\$part"
-      fi
-    done
-    if [[ -n "\$kept" ]]; then
-      updated_line="cicustom: user=\$snippet_ref,\$kept"
-    else
-      updated_line="cicustom: user=\$snippet_ref"
-    fi
-    if echo "\$current_line" | grep -q '^cicustom:'; then
-      sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
-    else
-      echo "\$updated_line" >>"\$conf"
-    fi
+    updated_line="cicustom: user=\$snippet_ref"
   fi
+  sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
 fi
 EOF
   chmod 0755 "$hookscriptPath"
