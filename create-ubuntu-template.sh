@@ -112,20 +112,17 @@ runcmd_lines=""
 
 if [[ "$enableDynamicHostname" == "true" ]]; then
   hookscriptPath="$snippetDir/$hookscriptName"
-  cat >"$hookscriptPath" <<EOF
+  cat >"$hookscriptPath" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 
 vmid="\$1"
 phase="\$2"
 
-if [[ "\$phase" != "pre-start" ]]; then
-  exit 0
-fi
-
 SNIPPET_STORAGE="$snippetStorage"
 SNIPPET_DIR="$snippetDir"
 BASE_USER_SNIPPET="$(basename "$cloudInitPath")"
+BASE_USER_PATH="$snippetDir/$BASE_USER_SNIPPET"
 
 raw_name="\$(qm config "\$vmid" | awk -F': ' '/^name:/{print \$2}')"
 if [[ -z "\$raw_name" ]]; then
@@ -149,12 +146,29 @@ if [[ -z "\$hostname" ]]; then
 fi
 
 snippet_file="\$SNIPPET_DIR/ci-hostname-\$vmid.yaml"
-cat >"\$snippet_file" <<SNIPPET
-#cloud-config
+if [[ ! -f "\$BASE_USER_PATH" ]]; then
+  exit 0
+fi
+
+write_snippet() {
+  cat "\$BASE_USER_PATH" >"\$snippet_file"
+  cat >>"\$snippet_file" <<SNIPPET
 preserve_hostname: false
 hostname: \$hostname
 manage_etc_hosts: true
 SNIPPET
+}
+
+if [[ "\$phase" == "pre-start" ]]; then
+  write_snippet
+  exit 0
+fi
+
+if [[ "\$phase" != "post-clone" ]]; then
+  exit 0
+fi
+
+write_snippet
 
 snippet_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$snippet_file")"
 existing_cicustom="\$(qm config "\$vmid" | awk -F': ' '/^cicustom:/{print \$2}')"
@@ -165,11 +179,8 @@ if [[ -z "\$existing_cicustom" ]]; then
 fi
 
 if echo "\$existing_cicustom" | grep -qE '(^|,)user='; then
-  current_user="\$(echo "\$existing_cicustom" | sed -n 's/.*user=\\([^,]*\\).*/\\1/p')"
-  if [[ "\$current_user" == *"\$BASE_USER_SNIPPET" ]]; then
-    updated="\$(echo "\$existing_cicustom" | sed "s|user=[^,]*|user=\$snippet_ref|")"
-    qm set "\$vmid" --cicustom "\$updated"
-  fi
+  updated="\$(echo "\$existing_cicustom" | sed "s|user=[^,]*|user=\$snippet_ref|")"
+  qm set "\$vmid" --cicustom "\$updated"
 else
   qm set "\$vmid" --cicustom "\$existing_cicustom,user=\$snippet_ref"
 fi
