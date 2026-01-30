@@ -66,6 +66,8 @@ if [[ -n "$sshPublicKeyPath" ]]; then
     echo "sshPublicKeyPath is empty." >&2
     exit 1
   fi
+elif [[ -t 0 ]]; then
+  read -r -p "Enter SSH public key (leave blank to skip): " sshPublicKey
 fi
 
 breakGlassKey=""
@@ -188,7 +190,14 @@ if [[ "\$needs_update" == "true" ]]; then
   if [[ -z "\$current_line" ]]; then
     echo "cicustom: user=\$snippet_ref" >>"\$conf"
   elif echo "\$current_line" | grep -qE '(^|,)user='; then
-    updated_line="\$(echo "\$current_line" | sed "s|user=[^,]*|user=\$snippet_ref|")"
+    # Replace all user= entries with a single user= snippet reference.
+    stripped="\$(echo "\$current_line" | sed -E 's/(^cicustom: *|,)?user=[^,]*//g')"
+    stripped="\$(echo "\$stripped" | sed -E 's/^cicustom: *//; s/^,+//; s/,+/,/g; s/,+\$//')"
+    if [[ -n "\$stripped" ]]; then
+      updated_line="cicustom: user=\$snippet_ref,\$stripped"
+    else
+      updated_line="cicustom: user=\$snippet_ref"
+    fi
     sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
   else
     updated_line="\$current_line,user=\$snippet_ref"
