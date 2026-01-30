@@ -122,7 +122,7 @@ phase="\$2"
 SNIPPET_STORAGE="$snippetStorage"
 SNIPPET_DIR="$snippetDir"
 BASE_USER_SNIPPET="$(basename "$cloudInitPath")"
-BASE_USER_PATH="$snippetDir/$BASE_USER_SNIPPET"
+BASE_USER_PATH="$snippetDir/\$BASE_USER_SNIPPET"
 
 raw_name="\$(qm config "\$vmid" | awk -F': ' '/^name:/{print \$2}')"
 if [[ -z "\$raw_name" ]]; then
