@@ -165,36 +165,42 @@ bootcmd:
 SNIPPET
 }
 
-if [[ "\$phase" == "pre-start" ]]; then
+if [[ "\$phase" == "pre-start" ]] || [[ "\$phase" == "post-clone" ]]; then
   write_snippet
-elif [[ "\$phase" == "post-clone" ]]; then
-  write_snippet
-else
-  exit 0
-fi
 
-snippet_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$snippet_file")"
-conf="/etc/pve/qemu-server/\${vmid}.conf"
+  snippet_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$snippet_file")"
+  conf="/etc/pve/qemu-server/\${vmid}.conf"
 
-if [[ ! -f "\$conf" ]]; then
-  exit 0
-fi
-
-# Update cicustom to point to per-VM snippet
-current_line="\$(grep -E '^cicustom:' "\$conf" || true)"
-if [[ -z "\$current_line" ]]; then
-  echo "cicustom: user=\$snippet_ref" >>"\$conf"
-else
-  # Replace user= value, preserve other keys
-  if echo "\$current_line" | grep -q "user="; then
-    sed -i "s|user=[^,]*|user=\$snippet_ref|" "\$conf"
-  else
-    sed -i "s|^cicustom:|cicustom: user=\$snippet_ref,|" "\$conf"
+  if [[ -f "\$conf" ]]; then
+    # Update cicustom to point to per-VM snippet
+    current_line="\$(grep -E '^cicustom:' "\$conf" || true)"
+    if [[ -z "\$current_line" ]]; then
+      echo "cicustom: user=\$snippet_ref" >>"\$conf"
+    else
+      # Replace user= value, preserve other keys
+      if echo "\$current_line" | grep -q "user="; then
+        sed -i "s|user=[^,]*|user=\$snippet_ref|" "\$conf"
+      else
+        sed -i "s|^cicustom:|cicustom: user=\$snippet_ref,|" "\$conf"
+      fi
+    fi
+    # Force regenerate cloud-init
+    qm cloudinit update "\$vmid" 2>/dev/null || true
   fi
-fi
 
-# Force regenerate cloud-init
-qm cloudinit update "\$vmid" 2>/dev/null || true
+elif [[ "\$phase" == "post-start" ]]; then
+  # Set hostname directly via guest agent after VM boots
+  # Wait for guest agent to be ready
+  for i in {1..30}; do
+    if qm guest cmd "\$vmid" ping 2>/dev/null; then
+      break
+    fi
+    sleep 2
+  done
+  # Set hostname via guest agent
+  qm guest exec "\$vmid" -- hostnamectl set-hostname "\$hostname" 2>/dev/null || true
+  qm guest exec "\$vmid" -- sed -i "s/127.0.1.1.*/127.0.1.1 \$hostname/" /etc/hosts 2>/dev/null || true
+fi
 EOF
   chmod 0755 "$hookscriptPath"
 fi
@@ -211,14 +217,6 @@ fi
 if [[ "$rotateTailscaleKey" == "true" ]]; then
   runcmd_lines+=$'\n  - if command -v tailscale >/dev/null 2>&1; then tailscale up --ssh --hostname="$(hostname)" || true; fi'
 fi
-
-# Add one-time reboot to pick up hostname changes from hookscript
-runcmd_lines+=$'\n  - |'
-runcmd_lines+=$'\n      marker="/var/lib/cloud/instance/hostname-reboot-done"'
-runcmd_lines+=$'\n      if [ ! -f "$marker" ]; then'
-runcmd_lines+=$'\n        touch "$marker"'
-runcmd_lines+=$'\n        reboot'
-runcmd_lines+=$'\n      fi'
 
 ssh_keys_block=""
 if [[ -n "$sshPublicKey" || -n "$breakGlassKey" ]]; then
