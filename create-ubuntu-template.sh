@@ -197,6 +197,9 @@ if [[ "$rotateTailscaleKey" == "true" && -n "$tailscaleAuthKey" ]]; then
   runcmd_lines+=$'\n  - curl -fsSL https://tailscale.com/install.sh | sh'
   runcmd_lines+=$'\n  - tailscale up --ssh --auth-key='"$tailscaleAuthKey"' --hostname="$(hostname)"'
 fi
+if [[ "$rotateTailscaleKey" == "true" ]]; then
+  runcmd_lines+=$'\n  - if command -v tailscale >/dev/null 2>&1; then tailscale up --ssh --hostname="$(hostname)" || true; fi'
+fi
 
 ssh_keys_block=""
 if [[ -n "$sshPublicKey" || -n "$breakGlassKey" ]]; then
