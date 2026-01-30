@@ -212,6 +212,14 @@ if [[ "$rotateTailscaleKey" == "true" ]]; then
   runcmd_lines+=$'\n  - if command -v tailscale >/dev/null 2>&1; then tailscale up --ssh --hostname="$(hostname)" || true; fi'
 fi
 
+# Add one-time reboot to pick up hostname changes from hookscript
+runcmd_lines+=$'\n  - |'
+runcmd_lines+=$'\n      marker="/var/lib/cloud/instance/hostname-reboot-done"'
+runcmd_lines+=$'\n      if [ ! -f "$marker" ]; then'
+runcmd_lines+=$'\n        touch "$marker"'
+runcmd_lines+=$'\n        reboot'
+runcmd_lines+=$'\n      fi'
+
 ssh_keys_block=""
 if [[ -n "$sshPublicKey" || -n "$breakGlassKey" ]]; then
   ssh_keys_block+=$'\n    ssh_authorized_keys:'
@@ -229,21 +237,9 @@ if [[ -n "$cloudInitHostname" ]]; then
   hostname_block+=$'\nmanage_etc_hosts: true'
 fi
 
-cat >"$cloudInitPath" <<'USERDATA'
+cat >"$cloudInitPath" <<EOF
 #cloud-config
 preserve_hostname: false
-bootcmd:
-  - |
-    # Reboot once on first boot to pick up hookscript's cloud-init changes
-    marker="/var/lib/cloud/instance/hostnameboot"
-    if [ ! -f "$marker" ]; then
-      mkdir -p "$(dirname "$marker")"
-      touch "$marker"
-      reboot
-    fi
-USERDATA
-
-cat >>"$cloudInitPath" <<EOF
 users:
   - name: $cloudInitUser
     groups: sudo
