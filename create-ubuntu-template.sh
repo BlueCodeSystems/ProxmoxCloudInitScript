@@ -219,9 +219,21 @@ if [[ -n "$cloudInitHostname" ]]; then
   hostname_block+=$'\nmanage_etc_hosts: true'
 fi
 
-cat >"$cloudInitPath" <<EOF
+cat >"$cloudInitPath" <<'USERDATA'
 #cloud-config
 preserve_hostname: false
+bootcmd:
+  - |
+    # Reboot once on first boot to pick up hookscript's cloud-init changes
+    marker="/var/lib/cloud/instance/hostnameboot"
+    if [ ! -f "$marker" ]; then
+      mkdir -p "$(dirname "$marker")"
+      touch "$marker"
+      reboot
+    fi
+USERDATA
+
+cat >>"$cloudInitPath" <<EOF
 users:
   - name: $cloudInitUser
     groups: sudo
