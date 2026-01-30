@@ -161,28 +161,39 @@ SNIPPET
 
 if [[ "\$phase" == "pre-start" ]]; then
   write_snippet
+elif [[ "\$phase" == "post-clone" ]]; then
+  write_snippet
+else
   exit 0
 fi
-
-if [[ "\$phase" != "post-clone" ]]; then
-  exit 0
-fi
-
-write_snippet
 
 snippet_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$snippet_file")"
-existing_cicustom="\$(qm config "\$vmid" | awk -F': ' '/^cicustom:/{print \$2}')"
+conf="/etc/pve/qemu-server/\${vmid}.conf"
 
-if [[ -z "\$existing_cicustom" ]]; then
-  qm set "\$vmid" --cicustom "user=\$snippet_ref"
+if [[ ! -f "\$conf" ]]; then
   exit 0
 fi
 
-if echo "\$existing_cicustom" | grep -qE '(^|,)user='; then
-  updated="\$(echo "\$existing_cicustom" | sed "s|user=[^,]*|user=\$snippet_ref|")"
-  qm set "\$vmid" --cicustom "\$updated"
-else
-  qm set "\$vmid" --cicustom "\$existing_cicustom,user=\$snippet_ref"
+current_line="\$(grep -E '^cicustom:' "\$conf" || true)"
+current_user="\$(echo "\$current_line" | sed -n 's/.*user=\\([^,]*\\).*/\\1/p')"
+
+needs_update="false"
+if [[ -z "\$current_line" ]]; then
+  needs_update="true"
+elif [[ -n "\$current_user" && "\$current_user" == *"\$BASE_USER_SNIPPET" ]]; then
+  needs_update="true"
+fi
+
+if [[ "\$needs_update" == "true" ]]; then
+  if [[ -z "\$current_line" ]]; then
+    echo "cicustom: user=\$snippet_ref" >>"\$conf"
+  elif echo "\$current_line" | grep -qE '(^|,)user='; then
+    updated_line="\$(echo "\$current_line" | sed "s|user=[^,]*|user=\$snippet_ref|")"
+    sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
+  else
+    updated_line="\$current_line,user=\$snippet_ref"
+    sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
+  fi
 fi
 EOF
   chmod 0755 "$hookscriptPath"
