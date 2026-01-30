@@ -189,19 +189,32 @@ fi
 if [[ "\$needs_update" == "true" ]]; then
   if [[ -z "\$current_line" ]]; then
     echo "cicustom: user=\$snippet_ref" >>"\$conf"
-  elif echo "\$current_line" | grep -qE '(^|,)user='; then
-    # Replace all user= entries with a single user= snippet reference.
-    stripped="\$(echo "\$current_line" | sed -E 's/(^cicustom: *|,)?user=[^,]*//g')"
-    stripped="\$(echo "\$stripped" | sed -E 's/^cicustom: *//; s/^,+//; s/,+/,/g; s/,+\$//')"
-    if [[ -n "\$stripped" ]]; then
-      updated_line="cicustom: user=\$snippet_ref,\$stripped"
+  else
+    # Rebuild cicustom with a single user= entry and preserve other keys.
+    line_body="\${current_line#cicustom: }"
+    IFS=',' read -r -a parts <<< "\$line_body"
+    kept=""
+    for part in "\${parts[@]}"; do
+      part="\$(echo "\$part" | sed 's/^ *//; s/ *\$//')"
+      if [[ -z "\$part" || "\$part" == user=* ]]; then
+        continue
+      fi
+      if [[ -z "\$kept" ]]; then
+        kept="\$part"
+      else
+        kept="\$kept,\$part"
+      fi
+    done
+    if [[ -n "\$kept" ]]; then
+      updated_line="cicustom: user=\$snippet_ref,\$kept"
     else
       updated_line="cicustom: user=\$snippet_ref"
     fi
-    sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
-  else
-    updated_line="\$current_line,user=\$snippet_ref"
-    sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
+    if echo "\$current_line" | grep -q '^cicustom:'; then
+      sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
+    else
+      echo "\$updated_line" >>"\$conf"
+    fi
   fi
 fi
 EOF
