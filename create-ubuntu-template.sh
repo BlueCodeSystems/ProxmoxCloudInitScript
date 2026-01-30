@@ -174,43 +174,17 @@ else
 fi
 
 snippet_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$snippet_file")"
-conf="/etc/pve/qemu-server/\${vmid}.conf"
+meta_file="\$SNIPPET_DIR/ci-meta-\$vmid.yaml"
+meta_ref="\$SNIPPET_STORAGE:snippets/\$(basename "\$meta_file")"
 
-if [[ ! -f "\$conf" ]]; then
-  exit 0
-fi
+# Create meta-data with local-hostname (processed early by cloud-init)
+cat >"\$meta_file" <<META
+instance-id: \$vmid
+local-hostname: \$hostname
+META
 
-current_line="\$(grep -E '^cicustom:' "\$conf" || true)"
-
-# Always update cicustom to point to the per-VM hostname snippet.
-# Preserve other cicustom keys (meta=, vendor=, network=) if present.
-if [[ -z "\$current_line" ]]; then
-  echo "cicustom: user=\$snippet_ref" >>"\$conf"
-else
-  line_body="\${current_line#cicustom: }"
-  IFS=',' read -r -a parts <<< "\$line_body"
-  kept=""
-  for part in "\${parts[@]}"; do
-    part="\$(echo "\$part" | sed 's/^ *//; s/ *\$//')"
-    if [[ -z "\$part" || "\$part" == user=* ]]; then
-      continue
-    fi
-    if [[ -z "\$kept" ]]; then
-      kept="\$part"
-    else
-      kept="\$kept,\$part"
-    fi
-  done
-  if [[ -n "\$kept" ]]; then
-    updated_line="cicustom: user=\$snippet_ref,\$kept"
-  else
-    updated_line="cicustom: user=\$snippet_ref"
-  fi
-  sed -i "s|^cicustom:.*|\$updated_line|" "\$conf"
-fi
-
-# Force Proxmox to regenerate cloud-init data with updated cicustom
-qm cloudinit update "\$vmid" 2>/dev/null || true
+# Use qm set to update cicustom - this properly notifies Proxmox
+qm set "\$vmid" --cicustom "user=\$snippet_ref,meta=\$meta_ref" 2>/dev/null || true
 EOF
   chmod 0755 "$hookscriptPath"
 fi
